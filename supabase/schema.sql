@@ -36,7 +36,7 @@ create table if not exists public.documents (
  id uuid primary key default gen_random_uuid(), title text not null, description text, storage_path text not null unique,
  department text, uploaded_by uuid not null references public.staff_profiles(id) on delete cascade, created_at timestamptz not null default now()
 );
-create or replace function public.set_updated_at() returns trigger language plpgsql security invoker as $$ begin new.updated_at=now(); return new; end $$;
+create or replace function public.set_updated_at() returns trigger language plpgsql security invoker as $$ begin new.updated_at=now(); return new end $$;
 drop trigger if exists staff_updated_at on public.staff_profiles;
 create trigger staff_updated_at before update on public.staff_profiles for each row execute function public.set_updated_at();
 
@@ -87,7 +87,10 @@ drop policy if exists meetings_manage on public.meetings;
 create policy meetings_manage on public.meetings for all to authenticated using (organizer_id=auth.uid() or public.is_admin()) with check (organizer_id=auth.uid() or public.is_admin());
 
 drop policy if exists announcements_read on public.announcements;
-create policy announcements_read on public.announcements for select to authenticated using (public.is_approved() and published=true);
+create policy announcements_read on public.announcements for select to authenticated using (
+ public.is_approved() and published=true and
+ (audience='organization' or (audience='department' and department=(select sp.department from public.staff_profiles sp where sp.id=auth.uid())))
+);
 drop policy if exists announcements_manage on public.announcements;
 create policy announcements_manage on public.announcements for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
