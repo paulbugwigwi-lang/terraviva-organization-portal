@@ -689,3 +689,61 @@ create trigger notify_meeting_created after insert on public.meetings for each r
 
 
 create index if not exists messages_thread_idx on public.messages(thread_id,created_at);
+
+-- V2.15 final permission hardening
+drop policy if exists meetings_manage on public.meetings;
+create policy meetings_manage on public.meetings
+for all to authenticated
+using (
+  public.is_admin()
+  or (
+    organizer_id=auth.uid()
+    and audience='department'
+    and department=(select department from public.staff_profiles where id=auth.uid())
+  )
+)
+with check (
+  public.is_admin()
+  or (
+    organizer_id=auth.uid()
+    and audience='department'
+    and department=(select department from public.staff_profiles where id=auth.uid())
+  )
+);
+
+drop policy if exists leave_admin_manage on public.leave_requests;
+create policy leave_admin_manage on public.leave_requests
+for all to authenticated
+using (
+  public.is_admin()
+  or staff_id=auth.uid()
+  or (
+    public.is_department_head()
+    and staff_id<>auth.uid()
+    and exists(
+      select 1 from public.staff_profiles target
+      where target.id=staff_id
+        and target.account_status='approved'
+        and target.department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+)
+with check (
+  public.is_admin()
+  or staff_id=auth.uid()
+  or (
+    public.is_department_head()
+    and staff_id<>auth.uid()
+    and exists(
+      select 1 from public.staff_profiles target
+      where target.id=staff_id
+        and target.account_status='approved'
+        and target.department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+);
+
+create index if not exists messages_thread_created_idx on public.messages(thread_id, created_at desc);
+create index if not exists notifications_recipient_read_idx on public.notifications(recipient_id, is_read, created_at desc);
+create index if not exists tasks_assignee_status_idx on public.tasks(assigned_to, status, due_date);
+create index if not exists leave_staff_status_idx on public.leave_requests(staff_id, status, start_date);
