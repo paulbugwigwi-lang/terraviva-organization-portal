@@ -36,7 +36,7 @@ create table if not exists public.documents (
  id uuid primary key default gen_random_uuid(), title text not null, description text, storage_path text not null unique,
  department text, uploaded_by uuid not null references public.staff_profiles(id) on delete cascade, created_at timestamptz not null default now()
 );
-create or replace function public.set_updated_at() returns trigger language plpgsql security invoker as $$ begin new.updated_at=now(); return new end $$;
+create or replace function public.set_updated_at() returns trigger language plpgsql security invoker as $$ begin new.updated_at=now(); return new; end $;
 drop trigger if exists staff_updated_at on public.staff_profiles;
 create trigger staff_updated_at before update on public.staff_profiles for each row execute function public.set_updated_at();
 
