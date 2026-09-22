@@ -259,3 +259,38 @@ end;
 $func$;
 drop trigger if exists notify_leave_decision on public.leave_requests;
 create trigger notify_leave_decision after update of status on public.leave_requests for each row execute function public.notify_leave_decision();
+
+
+-- V2.9 notify the intended audience when an announcement is published
+create or replace function public.notify_announcement_publish()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+declare v_id uuid;
+begin
+ if new.published=true and (tg_op='INSERT' or old.published is distinct from new.published or old.title is distinct from new.title or old.body is distinct from new.body) then
+   for v_id in select id from public.staff_profiles where account_status='approved' and id<>new.author_id and (new.audience='organization' or department=new.department) loop
+     insert into public.notifications(recipient_id,title,body,type)
+     values(v_id,'New announcement: '||new.title,'A new Terraviva announcement has been published for '||case when new.audience='organization' then 'all staff' else coalesce(new.department,'your department') end||'.','announcement');
+   end loop;
+ end if;
+ return new;
+end;
+$func$;
+drop trigger if exists notify_announcement_publish on public.announcements;
+create trigger notify_announcement_publish after insert or update on public.announcements for each row execute function public.notify_announcement_publish();
+
+-- V2.9 notify staff when a meeting is created
+create or replace function public.notify_meeting_created()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+declare v_id uuid;
+begin
+ for v_id in select id from public.staff_profiles where account_status='approved' and id<>new.organizer_id loop
+   insert into public.notifications(recipient_id,title,body,type)
+   values(v_id,'New meeting: '||new.title,'A Terraviva meeting has been scheduled for '||to_char(new.meeting_date,'YYYY-MM-DD HH24:MI')||'.','meeting');
+ end loop;
+ return new;
+end;
+$func$;
+drop trigger if exists notify_meeting_created on public.meetings;
+create trigger notify_meeting_created after insert on public.meetings for each row execute function public.notify_meeting_created();
