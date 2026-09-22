@@ -125,7 +125,7 @@ stable
 security definer
 set search_path = public
 as $
-  select exists(select 1 from public.staff_profiles me where me.id=auth.uid() and me.account_status='approved' and (me.id=target_id or public.is_admin() or me.reporting_to_id=target_id or exists(select 1 from public.staff_profiles child where child.id=target_id and child.reporting_to_id=me.id) or (me.department is not null and me.department=(select department from public.staff_profiles where id=target_id) and me.system_role='department_head')));
+  select exists(select 1 from public.staff_profiles me where me.id=auth.uid() and me.account_status='approved' and (me.id=target_id or public.is_admin() or me.reporting_to_id=target_id or exists(select 1 from public.staff_profiles child where child.id=target_id and child.reporting_to_id=me.id) or (me.department is not null and me.department=(select department from public.staff_profiles where id=target_id))));
 $;
 
 create or replace function public.is_admin()
