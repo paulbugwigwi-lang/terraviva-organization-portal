@@ -428,3 +428,64 @@ drop trigger if exists audit_tasks on public.tasks;
 create trigger audit_tasks after insert or update or delete on public.tasks for each row execute function public.write_activity_log();
 drop trigger if exists audit_leave_requests on public.leave_requests;
 create trigger audit_leave_requests after insert or update or delete on public.leave_requests for each row execute function public.write_activity_log();
+
+
+-- V2.2 role and department permissions
+create or replace function public.is_department_head()
+returns boolean language sql stable security definer set search_path=public
+as $func$
+ select exists(select 1 from public.staff_profiles where id=auth.uid() and account_status='approved' and system_role='department_head');
+$func$;
+create or replace function public.can_manage_department(p_department text)
+returns boolean language sql stable security definer set search_path=public
+as $func$
+ select public.is_admin() or exists(select 1 from public.staff_profiles where id=auth.uid() and account_status='approved' and system_role='department_head' and department is not null and department=p_department);
+$func$;
+
+-- Department heads may coordinate tasks only within their own department.
+drop policy if exists tasks_insert on public.tasks;
+create policy tasks_insert on public.tasks for insert to authenticated
+with check (
+ public.is_approved() and assigned_by=auth.uid() and
+ (public.is_admin() or (public.is_department_head() and exists(select 1 from public.staff_profiles target where target.id=assigned_to and target.department=(select department from public.staff_profiles where id=auth.uid()) and target.account_status='approved')))
+);
+
+-- Department-scoped announcements can be managed by the department head for that department.
+drop policy if exists announcements_manage on public.announcements;
+create policy announcements_manage on public.announcements for all to authenticated
+using (public.is_admin() or (public.is_department_head() and audience='department' and department=(select department from public.staff_profiles where id=auth.uid())))
+with check (public.is_admin() or (public.is_department_head() and audience='department' and department=(select department from public.staff_profiles where id=auth.uid())));
+
+-- Department document access is enforced at both table and storage levels.
+drop policy if exists documents_read on public.documents;
+create policy documents_read on public.documents for select to authenticated
+using (public.is_approved() and (department is null or department=(select department from public.staff_profiles where id=auth.uid()) or public.is_admin()));
+drop policy if exists documents_manage on public.documents;
+create policy documents_manage on public.documents for all to authenticated
+using (uploaded_by=auth.uid() or public.is_admin() or (public.is_department_head() and department=(select department from public.staff_profiles where id=auth.uid())))
+with check (uploaded_by=auth.uid() or public.is_admin() or (public.is_department_head() and department=(select department from public.staff_profiles where id=auth.uid())));
+
+insert into storage.buckets(id,name,public) values('profile-photos','profile-photos',false) on conflict(id) do update set public=false;
+drop policy if exists profile_photos_read on storage.objects;
+create policy profile_photos_read on storage.objects for select to authenticated
+using (bucket_id='profile-photos' and public.is_approved());
+drop policy if exists profile_photos_upload on storage.objects;
+create policy profile_photos_upload on storage.objects for insert to authenticated
+with check (bucket_id='profile-photos' and public.is_approved() and (name like auth.uid()::text || '/%'));
+drop policy if exists profile_photos_update on storage.objects;
+create policy profile_photos_update on storage.objects for update to authenticated
+using (bucket_id='profile-photos' and owner_id=auth.uid()::text)
+with check (bucket_id='profile-photos' and owner_id=auth.uid()::text);
+drop policy if exists profile_photos_delete on storage.objects;
+create policy profile_photos_delete on storage.objects for delete to authenticated
+using (bucket_id='profile-photos' and (owner_id=auth.uid()::text or public.is_admin()));
+
+drop policy if exists staff_files_read on storage.objects;
+create policy staff_files_read on storage.objects for select to authenticated
+using (
+ bucket_id='staff-files' and public.is_approved() and
+ exists(select 1 from public.documents d where d.storage_path=name and (d.department is null or d.department=(select department from public.staff_profiles where id=auth.uid()) or public.is_admin()))
+);
+drop policy if exists staff_files_upload on storage.objects;
+create policy staff_files_upload on storage.objects for insert to authenticated
+with check (bucket_id='staff-files' and public.is_approved());
