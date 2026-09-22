@@ -410,7 +410,7 @@ begin
   end if;
   insert into public.activity_logs(actor_id,action,entity_type,entity_id,details)
   values(auth.uid(),lower(TG_OP)||'_'||TG_TABLE_NAME,TG_TABLE_NAME,v_id,v_details);
-  return coalesce(NEW,OLD);
+  if TG_OP='DELETE' then return OLD; else return NEW; end if;
 end;
 $func$;
 
