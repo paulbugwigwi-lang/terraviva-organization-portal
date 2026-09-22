@@ -22,6 +22,7 @@ create table if not exists public.messages (
  id uuid primary key default gen_random_uuid(),
  sender_id uuid not null references public.staff_profiles(id) on delete cascade,
  recipient_id uuid not null references public.staff_profiles(id) on delete cascade,
+ thread_id uuid,
  subject text not null,
  body text not null,
  is_read boolean not null default false,
@@ -685,3 +686,6 @@ end;
 $func$;
 drop trigger if exists notify_meeting_created on public.meetings;
 create trigger notify_meeting_created after insert on public.meetings for each row execute function public.notify_meeting_created();
+
+
+create index if not exists messages_thread_idx on public.messages(thread_id,created_at);
