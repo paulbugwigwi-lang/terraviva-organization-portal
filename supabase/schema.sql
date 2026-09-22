@@ -463,9 +463,9 @@ using (public.is_approved() and (department is null or department=(select depart
 drop policy if exists documents_manage on public.documents;
 create policy documents_manage on public.documents for all to authenticated
 using (uploaded_by=auth.uid() or public.is_admin() or (public.is_department_head() and department=(select department from public.staff_profiles where id=auth.uid())))
-with check (uploaded_by=auth.uid() or public.is_admin() or (public.is_department_head() and department=(select department from public.staff_profiles where id=auth.uid())));
+with check (public.is_admin() or (public.is_department_head() and department=(select department from public.staff_profiles where id=auth.uid())) or (uploaded_by=auth.uid() and (department is null or department=(select department from public.staff_profiles where id=auth.uid()))));
 
-insert into storage.buckets(id,name,public) values('profile-photos','profile-photos',false) on conflict(id) do update set public=false;
+insert into storage.buckets(id,name,public) values('profile-photos','profile-photos',true) on conflict(id) do update set public=true;
 drop policy if exists profile_photos_read on storage.objects;
 create policy profile_photos_read on storage.objects for select to authenticated
 using (bucket_id='profile-photos' and public.is_approved());
