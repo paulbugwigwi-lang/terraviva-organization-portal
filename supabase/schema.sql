@@ -124,7 +124,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $func$
   select exists(
     select 1 from public.staff_profiles me
     where me.id=auth.uid()
@@ -138,7 +138,7 @@ as $
         or (select system_role from public.staff_profiles where id=target_id) in ('ceo_chairperson','coo_treasurer','executive_secretary')
       )
   );
-$;
+$func$;
 
 create or replace function public.is_admin()
 returns boolean
