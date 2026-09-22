@@ -581,3 +581,45 @@ create trigger prevent_reporting_cycle before insert or update of reporting_to_i
    or staff_id=auth.uid()
    or (public.is_department_head() and exists(select 1 from public.staff_profiles target where target.id=staff_id and target.account_status='approved' and target.department=(select department from public.staff_profiles where id=auth.uid())))
  );
+
+
+-- V2.7 coordination automation: notify recipients when key workflow records are created
+create or replace function public.notify_task_assignment()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ insert into public.notifications(recipient_id,title,body,type)
+ values(new.assigned_to,'New task assigned: '||new.title,'You have been assigned a '||new.priority||' priority task. Please review the task details and update its status.','task');
+ return new;
+end;
+$func$;
+drop trigger if exists notify_task_assignment on public.tasks;
+create trigger notify_task_assignment after insert on public.tasks for each row execute function public.notify_task_assignment();
+
+create or replace function public.notify_new_message()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ insert into public.notifications(recipient_id,title,body,type)
+ values(new.recipient_id,'New private message','You received a new private message from a Terraviva staff member.','message');
+ return new;
+end;
+$func$;
+drop trigger if exists notify_new_message on public.messages;
+create trigger notify_new_message after insert on public.messages for each row execute function public.notify_new_message();
+
+create or replace function public.notify_leave_submission()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+declare v_id uuid;
+begin
+ for v_id in select id from public.staff_profiles where account_status='approved' and (system_role in ('ceo_chairperson','coo_treasurer','executive_secretary') or (system_role='department_head' and department=(select department from public.staff_profiles where id=new.staff_id))) loop
+   if v_id <> new.staff_id then
+     insert into public.notifications(recipient_id,title,body,type) values(v_id,'New leave request','A staff member has submitted a leave request for review.','leave');
+   end if;
+ end loop;
+ return new;
+end;
+$func$;
+drop trigger if exists notify_leave_submission on public.leave_requests;
+create trigger notify_leave_submission after insert on public.leave_requests for each row execute function public.notify_leave_submission();
