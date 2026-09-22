@@ -2,7 +2,7 @@ name: Build Terraviva Portal
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "terraviva-portal-v2"]
   pull_request:
     branches: ["main"]
 
