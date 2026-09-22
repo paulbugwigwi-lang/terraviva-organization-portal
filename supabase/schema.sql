@@ -623,3 +623,33 @@ end;
 $func$;
 drop trigger if exists notify_leave_submission on public.leave_requests;
 create trigger notify_leave_submission after insert on public.leave_requests for each row execute function public.notify_leave_submission();
+
+
+-- V2.8 task completion and leave decision notifications
+create or replace function public.notify_task_completion()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ if old.status is distinct from new.status and new.status='completed' and new.assigned_by is not null and new.assigned_by <> new.assigned_to then
+   insert into public.notifications(recipient_id,title,body,type)
+   values(new.assigned_by,'Task completed: '||coalesce(new.title,'Task'),'The assigned staff member has marked this task as completed.','task');
+ end if;
+ return new;
+end;
+$func$;
+drop trigger if exists notify_task_completion on public.tasks;
+create trigger notify_task_completion after update of status on public.tasks for each row execute function public.notify_task_completion();
+
+create or replace function public.notify_leave_decision()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ if old.status is distinct from new.status and new.status in ('approved','rejected') then
+   insert into public.notifications(recipient_id,title,body,type)
+   values(new.staff_id,'Leave request '||initcap(new.status),'Your leave request for '||new.start_date||' to '||new.end_date||' has been '||new.status||'.','leave');
+ end if;
+ return new;
+end;
+$func$;
+drop trigger if exists notify_leave_decision on public.leave_requests;
+create trigger notify_leave_decision after update of status on public.leave_requests for each row execute function public.notify_leave_decision();
