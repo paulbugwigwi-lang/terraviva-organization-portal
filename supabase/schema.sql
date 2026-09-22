@@ -35,6 +35,8 @@ create table if not exists public.meetings (
  meeting_date timestamptz not null,
  location text,
  meeting_link text,
+ audience text not null default 'organization' check (audience in ('organization','department')),
+ department text,
  organizer_id uuid not null references public.staff_profiles(id) on delete cascade,
  created_at timestamptz not null default now()
 );
