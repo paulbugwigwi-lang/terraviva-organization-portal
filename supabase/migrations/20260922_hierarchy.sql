@@ -41,3 +41,15 @@ drop policy if exists notifications_update on public.notifications; create polic
 drop policy if exists leave_select on public.leave_requests; create policy leave_select on public.leave_requests for select to authenticated using (staff_id=auth.uid() or reviewed_by=auth.uid() or public.is_admin());
 drop policy if exists leave_insert on public.leave_requests; create policy leave_insert on public.leave_requests for insert to authenticated with check (staff_id=auth.uid() and public.is_approved());
 drop policy if exists leave_update on public.leave_requests; create policy leave_update on public.leave_requests for update to authenticated using (staff_id=auth.uid() or public.is_admin());
+
+
+-- Automatic in-app notifications for coordination events
+create or replace function public.notify_message() returns trigger language plpgsql security definer set search_path=public as $$
+begin insert into public.notifications(recipient_id,title,body,type) values(new.recipient_id,'New private message',coalesce(new.subject,'You received a new message'),'message'); return new; end; $$;
+drop trigger if exists trg_notify_message on public.messages; create trigger trg_notify_message after insert on public.messages for each row execute function public.notify_message();
+create or replace function public.notify_task() returns trigger language plpgsql security definer set search_path=public as $$
+begin if new.assigned_to is not null then insert into public.notifications(recipient_id,title,body,type) values(new.assigned_to,'New task assigned',new.title,'task'); end if; return new; end; $$;
+drop trigger if exists trg_notify_task on public.tasks; create trigger trg_notify_task after insert on public.tasks for each row execute function public.notify_task();
+create or replace function public.notify_announcement() returns trigger language plpgsql security definer set search_path=public as $$
+begin insert into public.notifications(recipient_id,title,body,type) select id,new.title,'New Terraviva announcement','announcement' from public.staff_profiles where account_status='approved' and (new.audience='organization' or (new.audience='department' and department=new.department)); return new; end; $$;
+drop trigger if exists trg_notify_announcement on public.announcements; create trigger trg_notify_announcement after insert on public.announcements for each row execute function public.notify_announcement();
