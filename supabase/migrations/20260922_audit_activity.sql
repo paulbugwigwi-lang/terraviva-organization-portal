@@ -156,3 +156,18 @@ end;
 $func$;
 drop trigger if exists prevent_reporting_cycle on public.staff_profiles;
 create trigger prevent_reporting_cycle before insert or update of reporting_to_id on public.staff_profiles for each row execute function public.prevent_reporting_cycle();
+
+
+-- V2.5 department leave coordination
+ drop policy if exists leave_admin_manage on public.leave_requests;
+ create policy leave_admin_manage on public.leave_requests for all to authenticated
+ using (
+   public.is_admin()
+   or staff_id=auth.uid()
+   or (public.is_department_head() and exists(select 1 from public.staff_profiles target where target.id=staff_id and target.account_status='approved' and target.department=(select department from public.staff_profiles where id=auth.uid())))
+ )
+ with check (
+   public.is_admin()
+   or staff_id=auth.uid()
+   or (public.is_department_head() and exists(select 1 from public.staff_profiles target where target.id=staff_id and target.account_status='approved' and target.department=(select department from public.staff_profiles where id=auth.uid())))
+ );
