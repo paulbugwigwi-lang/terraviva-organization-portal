@@ -7,3 +7,5 @@
 
 .roleBadge.light{background:#eef8f1;color:#087f5b;border-color:#cde5d4;margin:0;display:flex;align-items:center;gap:6px}
 .adminStats .stat{min-height:118px}
+
+.uploadLabel{display:grid;gap:7px;font-size:13px;font-weight:750;color:#476057}.uploadLabel input{padding:10px}
