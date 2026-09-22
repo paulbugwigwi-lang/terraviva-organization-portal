@@ -294,3 +294,18 @@ end;
 $func$;
 drop trigger if exists notify_meeting_created on public.meetings;
 create trigger notify_meeting_created after insert on public.meetings for each row execute function public.notify_meeting_created();
+
+
+-- V2.10 meeting coordination: allow organizers to target a department or all staff
+alter table public.meetings add column if not exists audience text not null default 'organization' check (audience in ('organization','department'));
+alter table public.meetings add column if not exists department text;
+create or replace function public.notify_meeting_created()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+declare v_id uuid;
+begin
+ for v_id in select id from public.staff_profiles where account_status='approved' and id<>new.organizer_id and (new.audience='organization' or department=new.department) loop
+   insert into public.notifications(recipient_id,title,body,type) values(v_id,'New meeting: '||new.title,'A Terraviva meeting has been scheduled for '||to_char(new.meeting_date,'YYYY-MM-DD HH24:MI')||'.','meeting');
+ end loop; return new;
+end;
+$func$;
