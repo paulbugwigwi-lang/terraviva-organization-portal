@@ -309,3 +309,13 @@ begin
  end loop; return new;
 end;
 $func$;
+
+
+-- V2.12 explicit conversation threads for private reporting
+alter table public.messages add column if not exists thread_id uuid;
+create index if not exists messages_thread_idx on public.messages(thread_id,created_at);
+create or replace function public.can_message(target_id uuid)
+returns boolean language sql stable security definer set search_path=public
+as $func$
+ select exists(select 1 from public.staff_profiles me where me.id=auth.uid() and me.account_status='approved' and (me.id=target_id or public.is_admin() or me.reporting_to_id=target_id or exists(select 1 from public.staff_profiles child where child.id=target_id and child.reporting_to_id=me.id) or (me.department is not null and me.department=(select department from public.staff_profiles where id=target_id)) or (select system_role from public.staff_profiles where id=target_id) in ('ceo_chairperson','coo_treasurer','executive_secretary')));
+$func$;
