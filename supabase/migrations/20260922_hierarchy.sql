@@ -15,3 +15,29 @@ $$;
 drop policy if exists messages_send on public.messages;
 create policy messages_send on public.messages for insert to authenticated
 with check (sender_id=auth.uid() and public.is_approved() and public.can_message(recipient_id));
+
+
+-- Organization coordination modules
+create table if not exists public.tasks (
+ id uuid primary key default gen_random_uuid(), title text not null, description text, assigned_to uuid references public.staff_profiles(id) on delete set null,
+ assigned_by uuid references public.staff_profiles(id) on delete set null, status text not null default 'pending' check(status in ('pending','in_progress','completed','cancelled')),
+ priority text not null default 'normal' check(priority in ('low','normal','high','urgent')), due_date timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.notifications (
+ id uuid primary key default gen_random_uuid(), recipient_id uuid not null references public.staff_profiles(id) on delete cascade, title text not null, body text not null,
+ type text not null default 'info', is_read boolean not null default false, created_at timestamptz not null default now()
+);
+create table if not exists public.leave_requests (
+ id uuid primary key default gen_random_uuid(), staff_id uuid not null references public.staff_profiles(id) on delete cascade, start_date date not null, end_date date not null,
+ reason text, status text not null default 'pending' check(status in ('pending','approved','rejected')), reviewed_by uuid references public.staff_profiles(id) on delete set null,
+ created_at timestamptz not null default now()
+);
+alter table public.tasks enable row level security; alter table public.notifications enable row level security; alter table public.leave_requests enable row level security;
+drop policy if exists tasks_select on public.tasks; create policy tasks_select on public.tasks for select to authenticated using (public.is_approved() and (assigned_to=auth.uid() or assigned_by=auth.uid() or public.is_admin()));
+drop policy if exists tasks_insert on public.tasks; create policy tasks_insert on public.tasks for insert to authenticated with check (public.is_approved() and assigned_by=auth.uid());
+drop policy if exists tasks_update on public.tasks; create policy tasks_update on public.tasks for update to authenticated using (assigned_to=auth.uid() or assigned_by=auth.uid() or public.is_admin());
+drop policy if exists notifications_select on public.notifications; create policy notifications_select on public.notifications for select to authenticated using (recipient_id=auth.uid() or public.is_admin());
+drop policy if exists notifications_update on public.notifications; create policy notifications_update on public.notifications for update to authenticated using (recipient_id=auth.uid());
+drop policy if exists leave_select on public.leave_requests; create policy leave_select on public.leave_requests for select to authenticated using (staff_id=auth.uid() or reviewed_by=auth.uid() or public.is_admin());
+drop policy if exists leave_insert on public.leave_requests; create policy leave_insert on public.leave_requests for insert to authenticated with check (staff_id=auth.uid() and public.is_approved());
+drop policy if exists leave_update on public.leave_requests; create policy leave_update on public.leave_requests for update to authenticated using (staff_id=auth.uid() or public.is_admin());
