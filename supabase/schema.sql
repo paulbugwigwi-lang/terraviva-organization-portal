@@ -678,7 +678,7 @@ returns trigger language plpgsql security definer set search_path=public
 as $func$
 declare v_id uuid;
 begin
- for v_id in select id from public.staff_profiles where account_status='approved' and id<>new.organizer_id loop
+ for v_id in select id from public.staff_profiles where account_status='approved' and id<>new.organizer_id and (new.audience='organization' or department=new.department) loop
    insert into public.notifications(recipient_id,title,body,type) values(v_id,'New meeting: '||new.title,'A Terraviva meeting has been scheduled for '||to_char(new.meeting_date,'YYYY-MM-DD HH24:MI')||'.','meeting');
  end loop; return new;
 end;
