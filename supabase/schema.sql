@@ -489,3 +489,37 @@ using (
 drop policy if exists staff_files_upload on storage.objects;
 create policy staff_files_upload on storage.objects for insert to authenticated
 with check (bucket_id='staff-files' and public.is_approved());
+
+
+-- V2.3 hardened role permissions and task field protection
+create or replace function public.can_manage_staff(target_id uuid)
+returns boolean language sql stable security definer set search_path=public
+as $func$
+ select public.is_admin()
+   or exists(
+     select 1 from public.staff_profiles me
+     join public.staff_profiles target on target.id=target_id
+     where me.id=auth.uid() and me.account_status='approved' and me.system_role='department_head'
+       and me.department is not null and me.department=target.department and target.account_status='approved'
+   );
+$func$;
+drop policy if exists profile_self_admin_update on public.staff_profiles;
+create policy profile_self_admin_update on public.staff_profiles for update to authenticated
+using (id=auth.uid() or public.is_admin() or public.can_manage_staff(id))
+with check (id=auth.uid() or public.is_admin() or public.can_manage_staff(id));
+create or replace function public.protect_task_assignee_changes()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ if auth.uid() = old.assigned_to and not public.is_admin() and auth.uid() <> old.assigned_by then
+   if new.title is distinct from old.title or new.description is distinct from old.description
+      or new.assigned_to is distinct from old.assigned_to or new.assigned_by is distinct from old.assigned_by
+      or new.priority is distinct from old.priority or new.due_date is distinct from old.due_date then
+     raise exception 'Assigned staff may only update task status';
+   end if;
+ end if;
+ return new;
+end;
+$func$;
+drop trigger if exists protect_task_assignee_changes on public.tasks;
+create trigger protect_task_assignee_changes before update on public.tasks for each row execute function public.protect_task_assignee_changes();
