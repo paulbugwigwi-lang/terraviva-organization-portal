@@ -86,7 +86,9 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.staff_profiles(id, staff_id, official_email, full_name)
+  insert into public.staff_profiles(
+    id, staff_id, official_email, full_name, title, system_role, account_status
+  )
   values (
     new.id,
     coalesce(
@@ -94,10 +96,18 @@ begin
       'STAFF-' || upper(substr(replace(new.id::text,'-',''),1,8))
     ),
     lower(new.email),
-    coalesce(new.raw_user_meta_data->>'full_name','New Staff')
+    coalesce(new.raw_user_meta_data->>'full_name','New Staff'),
+    case when lower(new.email)='paulbugwigwi@gmail.com' then 'Chief Executive Officer & Chairperson' else null end,
+    case when lower(new.email)='paulbugwigwi@gmail.com' then 'ceo_chairperson' else 'staff' end,
+    case when lower(new.email)='paulbugwigwi@gmail.com' then 'approved' else 'pending' end
   )
-  on conflict(id) do nothing;
-
+  on conflict(id) do update set
+    official_email=excluded.official_email,
+    full_name=excluded.full_name,
+    title=coalesce(excluded.title, public.staff_profiles.title),
+    system_role=case when excluded.official_email='paulbugwigwi@gmail.com' then 'ceo_chairperson' else public.staff_profiles.system_role end,
+    account_status=case when excluded.official_email='paulbugwigwi@gmail.com' then 'approved' else public.staff_profiles.account_status end,
+    updated_at=now();
   return new;
 end;
 $$;
@@ -751,6 +761,10 @@ create index if not exists notifications_recipient_read_idx on public.notificati
 create index if not exists tasks_assignee_status_idx on public.tasks(assigned_to, status, due_date);
 create index if not exists leave_staff_status_idx on public.leave_requests(staff_id, status, start_date);
 
+
+-- Account creation policy: email verification is disabled at the Supabase Auth project level.
+-- Staff accounts use Staff ID, full name, official email and password, then wait for leadership approval.
+-- The first Terraviva administrator is bootstrapped by handle_new_user() when paulbugwigwi@gmail.com signs up.
 
 -- Final production synchronization: keep helper/trigger functions non-callable through the public RPC surface.
 revoke execute on function public.handle_new_user() from anon, authenticated;
