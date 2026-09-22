@@ -523,3 +523,46 @@ end;
 $func$;
 drop trigger if exists protect_task_assignee_changes on public.tasks;
 create trigger protect_task_assignee_changes before update on public.tasks for each row execute function public.protect_task_assignee_changes();
+
+
+-- V2.4 staff management hardening: protect sensitive role/status fields and reporting cycles
+create or replace function public.protect_staff_management_fields()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+begin
+ if not public.is_admin() then
+   if new.system_role is distinct from old.system_role
+      or new.account_status is distinct from old.account_status
+      or new.department is distinct from old.department then
+     raise exception 'Only Terraviva administrators may change staff role, account status or department';
+   end if;
+   if auth.uid() = old.id and new.reporting_to_id is distinct from old.reporting_to_id then
+     raise exception 'Staff cannot change their own reporting line';
+   end if;
+   if new.staff_id is distinct from old.staff_id or new.official_email is distinct from old.official_email then
+     raise exception 'Staff ID and official email are administrator-managed fields';
+   end if;
+ end if;
+ return new;
+end;
+$func$;
+drop trigger if exists protect_staff_management_fields on public.staff_profiles;
+create trigger protect_staff_management_fields before update on public.staff_profiles for each row execute function public.protect_staff_management_fields();
+
+create or replace function public.prevent_reporting_cycle()
+returns trigger language plpgsql security definer set search_path=public
+as $func$
+declare v_id uuid;
+begin
+ if new.reporting_to_id is null then return new; end if;
+ if new.reporting_to_id = new.id then raise exception 'A staff member cannot report to themselves'; end if;
+ v_id := new.reporting_to_id;
+ while v_id is not null loop
+   if v_id = new.id then raise exception 'Reporting line would create an organization hierarchy cycle'; end if;
+   select reporting_to_id into v_id from public.staff_profiles where id=v_id;
+ end loop;
+ return new;
+end;
+$func$;
+drop trigger if exists prevent_reporting_cycle on public.staff_profiles;
+create trigger prevent_reporting_cycle before insert or update of reporting_to_id on public.staff_profiles for each row execute function public.prevent_reporting_cycle();
