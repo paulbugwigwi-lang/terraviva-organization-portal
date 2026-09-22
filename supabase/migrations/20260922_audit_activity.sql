@@ -311,6 +311,9 @@ end;
 $func$;
 
 
+drop trigger if exists notify_meeting_created on public.meetings;
+create trigger notify_meeting_created after insert on public.meetings for each row execute function public.notify_meeting_created();
+
 -- V2.12 explicit conversation threads for private reporting
 alter table public.messages add column if not exists thread_id uuid;
 create index if not exists messages_thread_idx on public.messages(thread_id,created_at);
