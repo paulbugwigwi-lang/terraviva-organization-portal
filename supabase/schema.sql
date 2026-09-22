@@ -750,3 +750,21 @@ create index if not exists messages_thread_created_idx on public.messages(thread
 create index if not exists notifications_recipient_read_idx on public.notifications(recipient_id, is_read, created_at desc);
 create index if not exists tasks_assignee_status_idx on public.tasks(assigned_to, status, due_date);
 create index if not exists leave_staff_status_idx on public.leave_requests(staff_id, status, start_date);
+
+
+-- Final production synchronization: keep helper/trigger functions non-callable through the public RPC surface.
+revoke execute on function public.handle_new_user() from anon, authenticated;
+revoke execute on function public.is_admin() from anon, authenticated;
+revoke execute on function public.is_approved() from anon, authenticated;
+revoke execute on function public.can_message(uuid) from anon, authenticated;
+revoke execute on function public.is_department_head() from anon, authenticated;
+revoke execute on function public.can_manage_staff(uuid) from anon, authenticated;
+revoke execute on function public.notify_task_assignment() from anon, authenticated;
+revoke execute on function public.notify_new_message() from anon, authenticated;
+revoke execute on function public.notify_leave_submission() from anon, authenticated;
+revoke execute on function public.notify_task_completion() from anon, authenticated;
+revoke execute on function public.notify_leave_decision() from anon, authenticated;
+revoke execute on function public.notify_announcement_publish() from anon, authenticated;
+revoke execute on function public.notify_meeting_created() from anon, authenticated;
+revoke execute on function public.write_activity_log() from anon, authenticated;
+revoke execute on function public.rls_auto_enable() from anon, authenticated;
