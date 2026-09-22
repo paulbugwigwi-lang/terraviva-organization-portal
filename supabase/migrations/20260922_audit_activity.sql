@@ -319,3 +319,66 @@ returns boolean language sql stable security definer set search_path=public
 as $func$
  select exists(select 1 from public.staff_profiles me where me.id=auth.uid() and me.account_status='approved' and (me.id=target_id or public.is_admin() or me.reporting_to_id=target_id or exists(select 1 from public.staff_profiles child where child.id=target_id and child.reporting_to_id=me.id) or (me.department is not null and me.department=(select department from public.staff_profiles where id=target_id)) or (select system_role from public.staff_profiles where id=target_id) in ('ceo_chairperson','coo_treasurer','executive_secretary')));
 $func$;
+
+
+-- V2.15 final permission hardening
+drop policy if exists meetings_manage on public.meetings;
+create policy meetings_manage on public.meetings
+for all to authenticated
+using (
+  public.is_admin()
+  or (
+    organizer_id=auth.uid()
+    and (
+      audience='organization' and public.is_admin()
+      or audience='department' and department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+)
+with check (
+  public.is_admin()
+  or (
+    organizer_id=auth.uid()
+    and (
+      audience='organization' and public.is_admin()
+      or audience='department' and department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+);
+
+drop policy if exists leave_admin_manage on public.leave_requests;
+create policy leave_admin_manage on public.leave_requests
+for all to authenticated
+using (
+  public.is_admin()
+  or staff_id=auth.uid()
+  or (
+    public.is_department_head()
+    and staff_id<>auth.uid()
+    and exists(
+      select 1 from public.staff_profiles target
+      where target.id=staff_id
+        and target.account_status='approved'
+        and target.department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+)
+with check (
+  public.is_admin()
+  or staff_id=auth.uid()
+  or (
+    public.is_department_head()
+    and staff_id<>auth.uid()
+    and exists(
+      select 1 from public.staff_profiles target
+      where target.id=staff_id
+        and target.account_status='approved'
+        and target.department=(select department from public.staff_profiles where id=auth.uid())
+    )
+  )
+);
+
+create index if not exists messages_thread_created_idx on public.messages(thread_id, created_at desc);
+create index if not exists notifications_recipient_read_idx on public.notifications(recipient_id, is_read, created_at desc);
+create index if not exists tasks_assignee_status_idx on public.tasks(assigned_to, status, due_date);
+create index if not exists leave_department_status_idx on public.leave_requests(staff_id, status, start_date);
