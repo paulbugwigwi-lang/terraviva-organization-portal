@@ -171,3 +171,16 @@ create trigger prevent_reporting_cycle before insert or update of reporting_to_i
    or staff_id=auth.uid()
    or (public.is_department_head() and exists(select 1 from public.staff_profiles target where target.id=staff_id and target.account_status='approved' and target.department=(select department from public.staff_profiles where id=auth.uid())))
  );
+
+
+-- V2.6 department heads may manage only department-targeted announcements
+ drop policy if exists announcements_manage on public.announcements;
+ create policy announcements_manage on public.announcements for all to authenticated
+ using (
+   public.is_admin()
+   or (public.is_department_head() and audience='department' and department=(select department from public.staff_profiles where id=auth.uid()))
+ )
+ with check (
+   public.is_admin()
+   or (public.is_department_head() and audience='department' and department=(select department from public.staff_profiles where id=auth.uid()))
+ );
