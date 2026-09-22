@@ -7,6 +7,7 @@ create table if not exists public.staff_profiles (
  full_name text not null,
  title text,
  department text,
+ reporting_to_id uuid references public.staff_profiles(id) on delete set null,
  phone text,
  location text,
  photo_url text,
@@ -117,6 +118,16 @@ as $$
   );
 $$;
 
+create or replace function public.can_message(target_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $
+  select exists(select 1 from public.staff_profiles me where me.id=auth.uid() and me.account_status='approved' and (me.id=target_id or public.is_admin() or me.reporting_to_id=target_id or exists(select 1 from public.staff_profiles child where child.id=target_id and child.reporting_to_id=me.id) or (me.department is not null and me.department=(select department from public.staff_profiles where id=target_id) and me.system_role='department_head')));
+$;
+
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -172,7 +183,7 @@ using (sender_id = auth.uid() or recipient_id = auth.uid());
 drop policy if exists messages_send on public.messages;
 create policy messages_send on public.messages
 for insert to authenticated
-with check (sender_id = auth.uid() and public.is_approved());
+with check (sender_id = auth.uid() and public.is_approved() and public.can_message(recipient_id));
 
 drop policy if exists messages_update_recipient on public.messages;
 create policy messages_update_recipient on public.messages
@@ -265,3 +276,9 @@ on public.messages(recipient_id, created_at desc);
 
 create index if not exists idx_meetings_date
 on public.meetings(meeting_date);
+
+
+alter table public.staff_profiles add column if not exists reporting_to_id uuid references public.staff_profiles(id) on delete set null;
+alter table public.documents add column if not exists description text;
+alter table public.documents add column if not exists department text;
+create index if not exists idx_staff_reporting_to on public.staff_profiles(reporting_to_id);
