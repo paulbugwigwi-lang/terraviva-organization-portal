@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://terraviva-organization-portal.vercel.app/sitemap.xml
