@@ -116,6 +116,3 @@
 .card .pickBtn{margin:0}
 .card .replyingTo button{border:0;background:transparent;padding:0;margin:0 0 0 6px}
 .card .threadHead .actions button,.card .reply .actions button{margin:0}
-.switchRow{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
-.switchRow input{width:20px;height:20px;margin-top:3px;flex:none;accent-color:#167b43}
-.switchRow small{display:block;color:#718078;margin-top:3px}

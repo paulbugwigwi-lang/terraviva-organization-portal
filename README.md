@@ -43,3 +43,10 @@ Production-oriented internal NGO portal built with React, Vite and Supabase.
 
 ### Important security note
 Never put a Supabase **service-role key** in browser code or Vercel client environment variables. Only use the project URL and anon/public key in this frontend.
+
+## v1.7.0 — Discussions, multi-file attachments, security fix
+- **Discussions** tab: threads for the whole organization or one department, replies (with quote-reply), emoji reactions, pin/lock (admins), edit/delete, search and category filters, live updates and notification deep-links.
+- **Multiple attachments everywhere**: discussions, replies, meetings, tasks, announcements, private messages, leave requests and documents accept several photos, videos, audio files and documents at once (drag & drop, thumbnails, upload progress).
+- Fixed: primary buttons inside cards were white-on-white (looked empty); saved text now keeps its line breaks everywhere.
+- Security: restored the staff-field protection triggers (a signed-in user could previously promote themselves), blocked reporting cycles and task tampering, revoked public execute on trigger/helper functions.
+- Migrations to run in order: `20261028_security_fix.sql`, `20261028_discussions.sql`, `20261028_leave_attachments.sql` (already applied to the production project).
