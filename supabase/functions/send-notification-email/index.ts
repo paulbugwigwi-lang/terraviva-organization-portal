@@ -7,6 +7,9 @@ const FROM = Deno.env.get("EMAIL_FROM") ?? "";
 const FROM_NAME = Deno.env.get("EMAIL_FROM_NAME") ?? "Terraviva Portal";
 const BREVO = Deno.env.get("BREVO_API_KEY");
 const RESEND = Deno.env.get("RESEND_API_KEY");
+// Option C (no provider account needed): a Google Apps Script web app that sends through your own Gmail.
+const GAS_URL = Deno.env.get("APPS_SCRIPT_URL");
+const GAS_SECRET = Deno.env.get("APPS_SCRIPT_SECRET");
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
@@ -28,6 +31,19 @@ function render(name: string, title: string, body: string) {
 }
 
 async function deliver(to: string, toName: string, subject: string, html: string, text: string) {
+  if (GAS_URL) {
+    const r = await fetch(GAS_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "content-type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ secret: GAS_SECRET ?? "", to, subject, html, text, fromName: FROM_NAME }),
+    });
+    const t = await r.text();
+    let j: { ok?: boolean; error?: string } = {};
+    try { j = JSON.parse(t); } catch { /* not JSON */ }
+    if (!r.ok || !j.ok) throw new Error("Apps Script: " + (j.error ?? t.slice(0, 200)));
+    return;
+  }
   if (!FROM) throw new Error("EMAIL_FROM secret is not set");
   if (BREVO) {
     const r = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -47,7 +63,7 @@ async function deliver(to: string, toName: string, subject: string, html: string
     if (!r.ok) throw new Error("Resend " + r.status + ": " + (await r.text()).slice(0, 300));
     return;
   }
-  throw new Error("No email provider configured (set BREVO_API_KEY or RESEND_API_KEY)");
+  throw new Error("No email provider configured (set APPS_SCRIPT_URL + APPS_SCRIPT_SECRET, or BREVO_API_KEY, or RESEND_API_KEY)");
 }
 
 Deno.serve(async (req) => {
