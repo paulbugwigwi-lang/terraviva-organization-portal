@@ -50,3 +50,4 @@ Never put a Supabase **service-role key** in browser code or Vercel client envir
 - Fixed: primary buttons inside cards were white-on-white (looked empty); saved text now keeps its line breaks everywhere.
 - Security: restored the staff-field protection triggers (a signed-in user could previously promote themselves), blocked reporting cycles and task tampering, revoked public execute on trigger/helper functions.
 - Migrations to run in order: `20261028_security_fix.sql`, `20261028_discussions.sql`, `20261028_leave_attachments.sql` (already applied to the production project).
+- **Email alerts**: every notification is also e-mailed to the recipient (can be turned off in My Profile). Run `20261028_email_notifications.sql`, deploy `supabase/functions/send-notification-email`, and set the Edge Function secrets `BREVO_API_KEY` (or `RESEND_API_KEY`) and `EMAIL_FROM`.
